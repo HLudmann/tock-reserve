@@ -1,0 +1,23 @@
+# Byte-compiled / optimized files
+__pycache__/
+*.pyc
+*.pyo
+
+# Caches and logs
+*.log
+.cache/
+
+# Virtual environments
+venv/
+.env
+.Python
+
+# IDE specific files
+.idea/
+*.swp
+
+# Ruff
+.ruff_cache
+
+# Poetry
+poetry.lock

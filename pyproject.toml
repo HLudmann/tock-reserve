@@ -9,6 +9,9 @@ packages = [
   { include = "tock_reserve" }
 ]
 
+[tool.poetry.scripts]
+tock-reserve = "tock_reserve.main:main"
+
 [tool.poetry.dependencies]
 python = "^3.10"
 selenium = "^4.17.2"

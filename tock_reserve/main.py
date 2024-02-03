@@ -3,6 +3,7 @@ import logging
 import typing as t
 from urllib.parse import urlencode, urljoin
 
+import fire
 import selenium.webdriver as w
 import selenium.webdriver.support.expected_conditions as ec
 from selenium.webdriver.common import by
@@ -34,8 +35,8 @@ class TockReserve:
             int: 1 if no open days found, 0 otherwise
         """
         search_url = (
-            f"{urljoin(TOCK_URL, "{self.restaurant}/search")}"
-            f"?{urlencode({'date': f"{year}-{month}-01", 'time': time, 'size': size})}"
+            f"{urljoin(TOCK_URL, '{self.restaurant}/search')}"
+            f"?{urlencode({'date': f'{year}-{month}-01', 'time': time, 'size': size})}"
         )
         self.driver.get(search_url)
 
@@ -84,3 +85,8 @@ class TockReserve:
             return 1
 
         return 0
+
+
+def main() -> None:
+    logging.basicConfig(level=logging.INFO)
+    fire.Fire(TockReserve)
