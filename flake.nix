@@ -22,8 +22,7 @@
           packages = with pkgs.${system}; [
             (mkPoetryEnv { projectDir = self; })
             poetry
-            chromedriver
-            chromium
+            geckodriver
           ];
         };
       });
