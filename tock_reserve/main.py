@@ -8,8 +8,8 @@ import typing as t
 from datetime import datetime, timezone
 from urllib.parse import urlencode, urljoin
 
-import fire
 import dotenv
+import fire
 import selenium.webdriver as w
 import selenium.webdriver.support.expected_conditions as ec
 import telegram as tel
@@ -28,6 +28,19 @@ class TockReserve:
         self.telebot = tel.Bot(token=os.environ["TELEGRAM_BOT_TOKEN"])
         self.username = os.environ["USERNAME"]
         self.password = os.environ["PASSWORD"]
+        self._driver = None
+
+    def __exit__(self: t.Self) -> None:
+        """Exit the class."""
+        if self._driver is not None:
+            self._driver.quit()
+
+    @property
+    def driver(self: t.Self) -> w.Firefox:
+        """Get the driver."""
+        if self._driver is None:
+            self._driver = w.Firefox()
+        return self._driver
 
     def run(self: t.Self, size: int) -> None:
         """Run the Tock reservation.
@@ -38,9 +51,8 @@ class TockReserve:
             password (str): password to login
             size (int): size of the party
         """
-        self.driver = w.Firefox()
-
-        if self.login(self.username, self.password) == 0:
+        self.gdpr()
+        if self.login() == 0:
             if not self.search_open_days(size):
                 logging.info("No open days found for the next 6 months")
         else:
@@ -62,10 +74,9 @@ class TockReserve:
             if m > 12:
                 year += 1
                 m = 1
-            if (day := self.reserve(year, m, "17:00", size)) > 0:
+            if res := self.reserve(year, m, "17:00", size):
                 msg = self.send_message(
-                    message=f"Open days found for {year}-{m:02d}-{day} for {size} people.\n"
-                    "Go to https://www.exploretock.com/noma/checkout/options to finish the reservation.",
+                    message=f"{res}\nGo to https://www.exploretock.com/noma/checkout/options to finish the reservation.",
                 )
                 asyncio.run(msg)
                 return True
@@ -104,13 +115,21 @@ class TockReserve:
         )
         if not open_days:
             logging.info("No open days found")
-            return 0
+            return ""
 
         open_days[0].click()
+        wait.WebDriverWait(self.driver, 10).until(
+            ec.presence_of_element_located((by.By.CSS_SELECTOR, "button.Consumer-resultsListItem.is-available")),
+        )
+        hours = self.driver.find_elements(
+            by.By.CSS_SELECTOR, "button.Consumer-resultsListItem.is-available"
+        )
 
-        return open_days[0].text
+        hours[0].click()
 
-    def login(self: t.Self, email: str, password: str) -> bool:
+        return f"Found open table on {year}-{month:02d}-{open_days[0].text} at {hours[0].text.split()[0]} for {size} people."
+
+    def login(self: t.Self) -> bool:
         """Login to Tock.
 
         Args:
@@ -126,8 +145,8 @@ class TockReserve:
         wait.WebDriverWait(self.driver, 10).until(
             ec.presence_of_element_located((by.By.NAME, "email")),
         )
-        self.driver.find_element(by.By.NAME, "email").send_keys(email)
-        self.driver.find_element(by.By.NAME, "password").send_keys(password)
+        self.driver.find_element(by.By.NAME, "email").send_keys(self.username)
+        self.driver.find_element(by.By.NAME, "password").send_keys(self.password)
 
         self.driver.find_element(by.By.CSS_SELECTOR, ".MuiButton-fullWidth").click()
 
@@ -141,6 +160,15 @@ class TockReserve:
             return False
 
         return True
+
+    def gdpr(self: t.Self) -> None:
+        """Accept GDPR cookies."""
+        self.driver.get(TOCK_URL + "/noma")
+        time.sleep(2)
+        for button in self.driver.find_elements(by.By.CLASS_NAME, "truste-button2"):
+            if button.text == "Reject All":
+                button.click()
+                break
 
     async def send_message(self: t.Self, message: str) -> None:
         chat_id = (await self.telebot.get_updates())[-1].message.chat_id
