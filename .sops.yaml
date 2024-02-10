@@ -1,0 +1,9 @@
+keys:
+  - users:
+    - &hldmna age1hl7rhfphv2jlxvputyr4nn44jwwrfm2prfrae4dtq5m4nl7mc3dqnv6p93
+
+creation_rules:
+  - paths: ["*"]
+    key_groups:
+      - age:
+        - *hldmna

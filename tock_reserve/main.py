@@ -1,11 +1,17 @@
 """CLI Tool to make Restaurant reservation on Tock."""
+import asyncio
 import logging
+import os
+import random
+import time
 import typing as t
+from datetime import datetime, timezone
 from urllib.parse import urlencode, urljoin
 
 import fire
 import selenium.webdriver as w
 import selenium.webdriver.support.expected_conditions as ec
+import telegram as tel
 from selenium.webdriver.common import by
 from selenium.webdriver.support import wait
 
@@ -17,8 +23,53 @@ class TockReserve:
 
     def __init__(self: t.Self, restaurant: str) -> None:
         """Initialize TockReserve class."""
-        self.driver = w.Firefox()
         self.restaurant = restaurant
+        self.telebot = tel.Bot(token=os.environ["TELEGRAM_BOT_TOKEN"])
+        self.username = os.environ["USERNAME"]
+        self.password = os.environ["PASSWORD"]
+
+    def run(self: t.Self, size: int) -> None:
+        """Run the Tock reservation.
+
+        Args:
+        ----
+            email (str): email to login
+            password (str): password to login
+            size (int): size of the party
+        """
+        self.driver = w.Firefox()
+
+        if self.login(self.username, self.password) == 0:
+            if not self.search_open_days(size):
+                logging.info("No open days found for the next 6 months")
+        else:
+            logging.error("Login failed")
+
+        found = False
+        while not found:
+            found = self.search_open_days(size)
+            time.sleep(random.randint(1, 5) * 60)
+
+        self.driver.quit()
+
+    def search_open_days(self: t.Self, size: int) -> bool:
+        now = datetime.now(timezone.utc)
+        year = now.year
+        month = now.month
+
+        for m in range(month, month + 8, 2):
+            if m > 12:
+                year += 1
+                m = 1
+            if (day := self.reserve(year, m, "17%3A00", size)) > 0:
+                msg = self.send_message(
+                    message=f"Open days found for {year}-{m:02d}-{day} for {size} people.\n"
+                    "Go to https://www.exploretock.com/noma/checkout/options to finish the reservation.",
+                )
+                asyncio.run(msg)
+                return True
+            time.sleep(random.randint(1, 5))
+        return False
 
     def reserve(self: t.Self, year: int, month: int, time: str, size: int) -> int:
         """Reserve a table on Tock.
@@ -50,11 +101,13 @@ class TockReserve:
         )
         if not open_days:
             logging.info("No open days found")
-            return 1
+            return 0
 
-        return 0
+        open_days[0].click()
 
-    def login(self: t.Self, email: str, password: str) -> int:
+        return open_days[0].text
+
+    def login(self: t.Self, email: str, password: str) -> bool:
         """Login to Tock.
 
         Args:
@@ -77,14 +130,18 @@ class TockReserve:
 
         # Checks for profile image css selector -> maybe not the best check but it works
         try:
-            wait.WebDriverWait(self.driver, 30).until(
-                ec.visibility_of_element_located((by.By.CSS_SELECTOR, ".css-118lam2")),
+            wait.WebDriverWait(self.driver, 10).until(
+                ec.presence_of_element_located((by.By.CLASS_NAME, "css-1wujmwl")),
             )
         except Exception:
             logging.error("Login failed")
-            return 1
+            return False
 
-        return 0
+        return True
+
+    async def send_message(self: t.Self, message: str) -> None:
+        chat_id = (await self.telebot.get_updates())[-1].message.chat_id
+        await self.telebot.send_message(chat_id=chat_id, text=message)
 
 
 def main() -> None:

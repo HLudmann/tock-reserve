@@ -23,6 +23,7 @@
             (mkPoetryEnv { projectDir = self; })
             poetry
             geckodriver
+            sops
           ];
         };
       });

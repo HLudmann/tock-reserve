@@ -18,6 +18,3 @@ venv/
 
 # Ruff
 .ruff_cache
-
-# Poetry
-poetry.lock
