@@ -87,9 +87,11 @@ class TockReserve:
             int: 1 if no open days found, 0 otherwise
         """
         search_url = (
-            urljoin(TOCK_URL, f'{self.restaurant}/search')
-            "?" urlencode({'date': f'{year}-{month}-01', 'time': time, 'size': size})
+            urljoin(TOCK_URL, f"{self.restaurant}/search")
+            + "?"
+            + urlencode({"date": f"{year}-{month:02d}-01", "time": time, "size": size})
         )
+
         self.driver.get(search_url)
 
         wait.WebDriverWait(self.driver, 10).until(
