@@ -58,11 +58,11 @@ class TockReserve:
         year = now.year
         month = now.month
 
-        for m in range(month, month + 8, 2):
+        for m in range(month, month + 8):
             if m > 12:
                 year += 1
                 m = 1
-            if (day := self.reserve(year, m, "17%3A00", size)) > 0:
+            if (day := self.reserve(year, m, "17:00", size)) > 0:
                 msg = self.send_message(
                     message=f"Open days found for {year}-{m:02d}-{day} for {size} people.\n"
                     "Go to https://www.exploretock.com/noma/checkout/options to finish the reservation.",
