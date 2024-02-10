@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from urllib.parse import urlencode, urljoin
 
 import fire
+import dotenv
 import selenium.webdriver as w
 import selenium.webdriver.support.expected_conditions as ec
 import telegram as tel
@@ -86,8 +87,8 @@ class TockReserve:
             int: 1 if no open days found, 0 otherwise
         """
         search_url = (
-            f"{urljoin(TOCK_URL, '{self.restaurant}/search')}"
-            f"?{urlencode({'date': f'{year}-{month}-01', 'time': time, 'size': size})}"
+            urljoin(TOCK_URL, f'{self.restaurant}/search')
+            "?" urlencode({'date': f'{year}-{month}-01', 'time': time, 'size': size})
         )
         self.driver.get(search_url)
 
@@ -146,4 +147,5 @@ class TockReserve:
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
+    dotenv.load_dotenv()
     fire.Fire(TockReserve)
