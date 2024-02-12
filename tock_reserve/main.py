@@ -10,9 +10,10 @@ from urllib.parse import urlencode, urljoin
 
 import dotenv
 import fire
+import retry as r
 import selenium.webdriver as w
 import selenium.webdriver.support.expected_conditions as ec
-import telegram as tel
+import telegram as tg
 from selenium.webdriver.common import by
 from selenium.webdriver.support import wait
 
@@ -25,9 +26,10 @@ class TockReserve:
     def __init__(self: t.Self, restaurant: str) -> None:
         """Initialize TockReserve class."""
         self.restaurant = restaurant
-        self.telebot = tel.Bot(token=os.environ["TELEGRAM_BOT_TOKEN"])
-        self.username = os.environ["USERNAME"]
-        self.password = os.environ["PASSWORD"]
+        self._token = os.environ["TELEGRAM_BOT_TOKEN"]
+        self._chat_id = os.environ["TELEGRAM_CHAT_ID"]
+        self._username = os.environ["USERNAME"]
+        self._password = os.environ["PASSWORD"]
         self._driver = None
 
     def __exit__(self: t.Self) -> None:
@@ -51,19 +53,29 @@ class TockReserve:
             password (str): password to login
             size (int): size of the party
         """
+        try:
+            return self._run(size)
+        except Exception:
+            logging.exception("An error occurred")
+            self._close()
+            return self.run(size)
+
+    def _close(self: t.Self) -> None:
+        if self._driver is not None:
+            try:
+                self._driver.quit()
+            except Exception:
+                pass
+        self._driver = None
+
+    def _run(self: t.Self, size: int) -> None:
         self.gdpr()
-        if self.login() == 0:
-            if not self.search_open_days(size):
-                logging.info("No open days found for the next 6 months")
-        else:
-            logging.error("Login failed")
+        self.login()
 
         found = False
         while not found:
             found = self.search_open_days(size)
             time.sleep(random.randint(1, 5) * 60)
-
-        self.driver.quit()
 
     def search_open_days(self: t.Self, size: int) -> bool:
         now = datetime.now(timezone.utc)
@@ -75,10 +87,9 @@ class TockReserve:
                 year += 1
                 m = 1
             if res := self.reserve(year, m, "17:00", size):
-                msg = self.send_message(
+                self.send_message(
                     message=f"{res}\nGo to https://www.exploretock.com/noma/checkout/options to finish the reservation.",
                 )
-                asyncio.run(msg)
                 return True
             time.sleep(random.randint(1, 5))
         return False
@@ -114,12 +125,14 @@ class TockReserve:
             "button.ConsumerCalendar-day.is-available",
         )
         if not open_days:
-            logging.info("No open days found")
+            logging.info(f"No open days found for {year}-{month:02d}")
             return ""
 
         open_days[0].click()
         wait.WebDriverWait(self.driver, 10).until(
-            ec.presence_of_element_located((by.By.CSS_SELECTOR, "button.Consumer-resultsListItem.is-available")),
+            ec.presence_of_element_located(
+                (by.By.CSS_SELECTOR, "button.Consumer-resultsListItem.is-available")
+            ),
         )
         hours = self.driver.find_elements(
             by.By.CSS_SELECTOR, "button.Consumer-resultsListItem.is-available"
@@ -127,9 +140,11 @@ class TockReserve:
 
         hours[0].click()
 
-        return f"Found open table on {year}-{month:02d}-{open_days[0].text} at {hours[0].text.split()[0]} for {size} people."
+        msg = f"Found open table on {year}-{month:02d}-{open_days[0].text} at {hours[0].text.split()[0]} for {size} people."
+        logging.info(msg)
+        return msg
 
-    def login(self: t.Self) -> bool:
+    def login(self: t.Self) -> None:
         """Login to Tock.
 
         Args:
@@ -145,21 +160,17 @@ class TockReserve:
         wait.WebDriverWait(self.driver, 10).until(
             ec.presence_of_element_located((by.By.NAME, "email")),
         )
-        self.driver.find_element(by.By.NAME, "email").send_keys(self.username)
-        self.driver.find_element(by.By.NAME, "password").send_keys(self.password)
+        self.driver.find_element(by.By.NAME, "email").send_keys(self._username)
+        self.driver.find_element(by.By.NAME, "password").send_keys(self._password)
 
         self.driver.find_element(by.By.CSS_SELECTOR, ".MuiButton-fullWidth").click()
 
         # Checks for profile image css selector -> maybe not the best check but it works
-        try:
-            wait.WebDriverWait(self.driver, 10).until(
-                ec.presence_of_element_located((by.By.CLASS_NAME, "css-1wujmwl")),
-            )
-        except Exception:
-            logging.error("Login failed")
-            return False
+        wait.WebDriverWait(self.driver, 10).until(
+            ec.presence_of_element_located((by.By.CLASS_NAME, "css-1wujmwl")),
+        )
 
-        return True
+        return
 
     def gdpr(self: t.Self) -> None:
         """Accept GDPR cookies."""
@@ -170,12 +181,17 @@ class TockReserve:
                 button.click()
                 break
 
-    async def send_message(self: t.Self, message: str) -> None:
-        chat_id = (await self.telebot.get_updates())[-1].message.chat_id
-        await self.telebot.send_message(chat_id=chat_id, text=message)
+    @r.retry(tries=5, delay=5, backoff=2, logger=logging.getLogger())
+    def send_message(self: t.Self, message: str) -> None:
+        coroutine = tg.Bot(token=self._token).send_message(chat_id=self._chat_id, text=message)
+        asyncio.run(coroutine)
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(
+        format="%(asctime)s %(levelname)-8s %(message)s",
+        level=logging.INFO,
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
     dotenv.load_dotenv()
     fire.Fire(TockReserve)

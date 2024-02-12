@@ -18,6 +18,7 @@ selenium = "^4.17.2"
 fire = "^0.5.0"
 python-telegram-bot = "^20.8"
 python-dotenv = "^1.0.1"
+retry2 = "0.9.5"
 
 [tool.poetry.group.dev]
 optional = true
