@@ -74,6 +74,13 @@ class TockReserve:
 
         found = False
         while not found:
+            # adjust for GMT+1 timezone
+            if (now := datetime.now(timezone.utc)).hour >= 20:
+                future = now.replace(day=now.day + 1, hour=8, minute=0, second=0)
+                sleep_time = (future - now).total_seconds()
+                logging.info("Sleeping during the night (21h-9h) for %s seconds", sleep_time)
+                time.sleep(sleep_time)
+
             found = self.search_open_days(size)
             time.sleep(random.randint(1, 5) * 60)
 
@@ -136,6 +143,10 @@ class TockReserve:
         )
         hours = self.driver.find_elements(
             by.By.CSS_SELECTOR, "button.Consumer-resultsListItem.is-available"
+        )
+
+        logging.info(
+            f"Found {len(hours)} open tables on {year}-{month:02d}-{open_days[0].text}: {', '.join([h.text for h in hours])}"
         )
 
         hours[0].click()
