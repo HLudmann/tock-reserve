@@ -89,7 +89,7 @@ class TockReserve:
         year = now.year
         month = now.month
 
-        for m in range(month, month + 8):
+        for m in range(month + 1, month + 8):
             if m > 12:
                 year += 1
                 m = 1
